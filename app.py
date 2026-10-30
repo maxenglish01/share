@@ -7,7 +7,7 @@ import random
 st.set_page_config(
     page_title="실시간 강의 대시보드", 
     layout="wide",
-    initial_sidebar_state="collapsed" # 처음에 사이드바가 닫혀있도록 설정
+    initial_sidebar_state="collapsed"
 )
 
 # --- 0. 참가자용 랜덤 닉네임 자동 생성 ---
@@ -17,9 +17,12 @@ nouns = ["토끼", "강아지", "고양이", "다람쥐", "펭귄", "병아리",
 if "my_random_name" not in st.session_state:
     st.session_state["my_random_name"] = f"{random.choice(adjectives)} {random.choice(nouns)}"
 
-# 파일 업로더 위젯 초기화용 키 생성 (삭제 시 캐시를 비우기 위함)
 if "uploader_key" not in st.session_state:
     st.session_state["uploader_key"] = str(random.random())
+
+# 당첨자 풍선 효과 무한 반복 방지용
+if "last_winner" not in st.session_state:
+    st.session_state["last_winner"] = None
 
 # --- 2. 서버 공유 메모리 ---
 @st.cache_resource
@@ -38,27 +41,20 @@ def get_shared_state():
 state = get_shared_state()
 shared_records = state["records"]
 
-# 구글 슬라이드 주소 변환 함수
 def get_embed_url(url):
     if not url: return ""
     url = url.strip()
-    
     if "docs.google.com/presentation" in url:
-        if "/pub" in url:
-            return url.replace("/pub", "/embed")
-        elif "/edit" in url: 
-            return url.split("/edit")[0] + "/preview"
-        elif "/preview" not in url and "/embed" not in url:
-            return url.rstrip('/') + "/preview"
+        if "/pub" in url: return url.replace("/pub", "/embed")
+        elif "/edit" in url: return url.split("/edit")[0] + "/preview"
+        elif "/preview" not in url and "/embed" not in url: return url.rstrip('/') + "/preview"
         return url
-        
     elif "youtube.com/watch?v=" in url:
         video_id = url.split("v=")[1].split("&")[0]
         return f"https://www.youtube.com/embed/{video_id}"
     elif "youtu.be/" in url:
         video_id = url.split("youtu.be/")[1].split("?")[0]
         return f"https://www.youtube.com/embed/{video_id}"
-        
     return url
 
 # --- 3. 사이드바: 강사 전용 메뉴 ---
@@ -74,8 +70,7 @@ with st.sidebar:
             
             new_prompt = st.text_area("복사용 프롬프트 (비워두면 화면에서 숨김)", value=state["prompt_template"], height=120)
             
-            # 파일 업로더에 session_state 키 부여
-            new_file = st.file_uploader("📎 공유할 파일 첨부 (이미지 첨부 시 화면에 바로 출력)", type=None, key=st.session_state["uploader_key"])
+            new_file = st.file_uploader("📎 공유할 파일 첨부", type=None, key=st.session_state["uploader_key"])
             
             if st.button("🚀 참가자 화면에 즉시 반영", type="primary", use_container_width=True):
                 state["material_title"] = new_title
@@ -88,7 +83,6 @@ with st.sidebar:
                 st.success("참가자 화면에 반영되었습니다!")
                 st.rerun()
 
-            # --- 첨부파일 완전 삭제 기능 구현 ---
             if state["uploaded_file_name"] is not None:
                 st.divider()
                 st.caption(f"📁 현재 참가자에게 공유 중인 파일: **{state['uploaded_file_name']}**")
@@ -96,7 +90,6 @@ with st.sidebar:
                     state["uploaded_file_bytes"] = None
                     state["uploaded_file_name"] = None
                     state["uploaded_file_type"] = None
-                    # 핵심: 파일 업로더의 key값을 랜덤으로 바꿔 기존 파일 캐시를 날림
                     st.session_state["uploader_key"] = str(random.random()) 
                     st.rerun()
 
@@ -113,13 +106,13 @@ with st.sidebar:
             if state["winner"]:
                 if st.button("당첨자 초기화", use_container_width=True):
                     state["winner"] = None
+                    st.session_state["last_winner"] = None
                     st.rerun()
 
             st.divider()
             st.subheader("📊 실시간 피드백 요약")
             if shared_records:
                 df_export = pd.DataFrame(shared_records)
-                
                 avg_rating = df_export["점수"].astype(int).mean()
                 st.metric("전체 평균 이해도", f"{avg_rating:.1f} / 5.0 점")
                 
@@ -137,46 +130,58 @@ with st.sidebar:
                 if st.button("🗑️ 전체 기록 초기화", use_container_width=True):
                     shared_records.clear()
                     state["winner"] = None
+                    st.session_state["last_winner"] = None
                     st.rerun()
 
-# --- 4. 메인 화면 타이틀 및 랜덤 뽑기 결과 ---
+# --- 4. 메인 화면 타이틀 ---
 st.title("🚀 실시간 강의 대시보드")
 
-if state["winner"]:
-    st.success(f"🎉 **축하합니다! 오늘의 발표자(이벤트 당첨자)는 [{state['winner']}] 님입니다!** 🎉")
-    st.balloons()
+# --- 5. 당첨자 발표 및 강사 제공 자료 카드 (3초마다 자동 갱신되는 프래그먼트) ---
+@st.fragment(run_every=3)
+def render_live_materials():
+    # 당첨자 발표
+    if state["winner"]:
+        st.success(f"🎉 **축하합니다! 오늘의 발표자(이벤트 당첨자)는 [{state['winner']}] 님입니다!** 🎉")
+        # 풍선 애니메이션이 3초마다 계속 터지는 것을 방지 (최초 1회만 재생)
+        if st.session_state["last_winner"] != state["winner"]:
+            st.balloons()
+            st.session_state["last_winner"] = state["winner"]
 
-# --- 5. 강사 제공 자료(PPT) 카드 ---
-with st.container(border=True):
-    st.markdown(f"### 📌 [진행 중인 강의] {state['material_title']}")
-    
-    if state["video_or_slide_url"]:
-        embed_link = get_embed_url(state["video_or_slide_url"])
-        st.components.v1.iframe(embed_link, height=550, scrolling=True)
-    
-    if state["prompt_template"]:
-        st.markdown("---")
-        st.markdown("**📋 실습용 프롬프트 (우측 상단 복사 아이콘 클릭)**")
-        st.code(state["prompt_template"], language="markdown")
+    # 진행 중인 강의 카드
+    with st.container(border=True):
+        st.markdown(f"### 📌 [진행 중인 강의] {state['material_title']}")
         
-    if state["uploaded_file_bytes"] is not None:
-        st.markdown("---")
+        if state["video_or_slide_url"]:
+            embed_link = get_embed_url(state["video_or_slide_url"])
+            st.components.v1.iframe(embed_link, height=550, scrolling=True)
         
-        # 파일이 이미지인 경우 화면에 즉시 띄우기
-        if state["uploaded_file_type"] and state["uploaded_file_type"].startswith("image"):
-            st.image(state["uploaded_file_bytes"], use_container_width=True)
+        if state["prompt_template"]:
+            st.markdown("---")
+            st.markdown("**📋 실습용 프롬프트 (우측 상단 복사 아이콘 클릭)**")
+            st.code(state["prompt_template"], language="markdown")
             
-        st.download_button(
-            label=f"📥 강의 보조 자료 다운로드 ({state['uploaded_file_name']})",
-            data=state["uploaded_file_bytes"],
-            file_name=state["uploaded_file_name"],
-            mime=state["uploaded_file_type"] or "application/octet-stream",
-            type="primary"
-        )
+        if state["uploaded_file_bytes"] is not None:
+            st.markdown("---")
+            if state["uploaded_file_type"] and state["uploaded_file_type"].startswith("image"):
+                img_col1, img_col2, img_col3 = st.columns([1, 2, 1])
+                with img_col2:
+                    st.image(state["uploaded_file_bytes"], use_container_width=True, caption=state['uploaded_file_name'])
+                
+            st.download_button(
+                label=f"📥 강의 보조 자료 다운로드 ({state['uploaded_file_name']})",
+                data=state["uploaded_file_bytes"],
+                file_name=state["uploaded_file_name"],
+                mime=state["uploaded_file_type"] or "application/octet-stream",
+                type="primary",
+                use_container_width=True
+            )
+
+# 프래그먼트 실행
+render_live_materials()
 
 st.divider()
 
-# --- 6. 참가자 실시간 피드백 입력 폼 ---
+# --- 6. 참가자 실시간 피드백 입력 폼 (이 부분은 입력 중 끊기지 않게 프래그먼트에서 제외) ---
 rating_options = {
     "⭐ (어려워요)": 1,
     "⭐⭐ (헷갈려요)": 2,
@@ -198,45 +203,4 @@ with st.form("feedback_form", clear_on_submit=True):
         )
         
     user_feedback = st.text_area(
-        "수업의 핵심 요약이나 궁금한 질문(Q&A)을 자유롭게 남겨주세요. 💬", 
-        height=100,
-        placeholder="질문이 있거나 요약할 내용을 이곳에 작성해 주세요..."
-    )
-    
-    submitted = st.form_submit_button("✅ 피드백 날리기", use_container_width=True)
-    
-    if submitted:
-        if user_name.strip() and user_feedback.strip():
-            score = rating_options[selected_rating_label]
-            star_string = "⭐" * score
-            
-            shared_records.append({
-                "제출시간": datetime.now().strftime("%H:%M:%S"),
-                "이름": user_name.strip(), 
-                "이해도": star_string,
-                "점수": score, 
-                "핵심 요약 및 Q&A": user_feedback.strip()
-            })
-            st.session_state["my_random_name"] = f"{random.choice(adjectives)} {random.choice(nouns)}"
-            st.toast("피드백이 성공적으로 전달되었습니다!", icon="💌")
-            st.rerun()
-        else:
-            st.warning("이름과 내용을 모두 입력해 주세요.")
-
-st.divider()
-
-# --- 7. 실시간 피드백 공유 현황판 ---
-col_title, col_refresh = st.columns([4, 1])
-with col_title:
-    st.subheader(f"💬 전체 참가자 현황 ({len(shared_records)}건)")
-with col_refresh:
-    if st.button("🔄 최신글 새로고침", use_container_width=True):
-        st.rerun()
-
-if shared_records:
-    df_display = pd.DataFrame(shared_records).iloc[::-1]
-    df_display = df_display.drop(columns=["점수"])
-    
-    st.dataframe(df_display, use_container_width=True, hide_index=True)
-else:
-    st.info("아직 제출된 피드백이 없습니다. 첫 번째 피드백의 주인공이 되어주세요!")
+        "수업의 핵심 요약이나 궁금한 질문(Q&A)을 자유롭게 남
