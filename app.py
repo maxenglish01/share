@@ -40,9 +40,9 @@ def show_floating_material():
 # --- 3. 사이드바: 강사 전용 메뉴 (자료 입력 및 파일 업로드) ---
 with st.sidebar:
     st.header("🔒 강사 전용 메뉴")
-    admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: rlaxornr")
+    admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: qlalfqjsgh")
     
-    if admin_pw == "1234":
+    if admin_pw == "rlaxornr":
         st.subheader("📝 강의 화면 및 파일 설정")
         new_title = st.text_input("강의 제목", value=state["material_title"])
         new_content = st.text_area("강의 설명 내용 (마크다운/표 지원)", value=state["material_content"], height=150)
