@@ -66,7 +66,7 @@ with st.sidebar:
     with st.expander("🔒 강사 전용 메뉴 (클릭하여 열기)", expanded=False):
         admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: 1234")
         
-        if admin_pw == "rlaxornr":
+        if admin_pw == "1234":
             st.subheader("📝 강의 PPT 및 자료 설정")
             new_title = st.text_input("강의 제목", value=state["material_title"])
             st.info("※ 구글 프레젠테이션 주소창의 링크를 그대로 넣으시면 자동 변환됩니다.")
@@ -75,7 +75,7 @@ with st.sidebar:
             new_prompt = st.text_area("복사용 프롬프트 (비워두면 화면에서 숨김)", value=state["prompt_template"], height=120)
             
             # 파일 업로더에 session_state 키 부여
-            new_file = st.file_uploader("📎 공유할 파일 첨부", type=None, key=st.session_state["uploader_key"])
+            new_file = st.file_uploader("📎 공유할 파일 첨부 (이미지 첨부 시 화면에 바로 출력)", type=None, key=st.session_state["uploader_key"])
             
             if st.button("🚀 참가자 화면에 즉시 반영", type="primary", use_container_width=True):
                 state["material_title"] = new_title
@@ -161,6 +161,11 @@ with st.container(border=True):
         
     if state["uploaded_file_bytes"] is not None:
         st.markdown("---")
+        
+        # 파일이 이미지인 경우 화면에 즉시 띄우기
+        if state["uploaded_file_type"] and state["uploaded_file_type"].startswith("image"):
+            st.image(state["uploaded_file_bytes"], use_container_width=True)
+            
         st.download_button(
             label=f"📥 강의 보조 자료 다운로드 ({state['uploaded_file_name']})",
             data=state["uploaded_file_bytes"],
@@ -189,7 +194,7 @@ with st.form("feedback_form", clear_on_submit=True):
         selected_rating_label = st.select_slider(
             "오늘 수업 내용, 얼마나 이해하셨나요? (별점)", 
             options=list(rating_options.keys()),
-            value="⭐⭐⭐⭐⭐ (완벽해요!)"  # <--- 기본값을 5점으로 변경
+            value="⭐⭐⭐⭐⭐ (완벽해요!)"
         )
         
     user_feedback = st.text_area(
