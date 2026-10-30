@@ -5,10 +5,12 @@ import random
 
 st.set_page_config(page_title="실시간 강의 대시보드", layout="wide")
 
-# --- 0. 참가자용 랜덤 닉네임 자동 생성 ---
+# --- 0. 참가자용 랜덤 닉네임 자동 생성 (오류 수정 부분) ---
+# 단어 목록을 if문 밖으로 꺼내서 제출 버튼을 눌러도 항상 기억하도록 수정했습니다.
+adjectives = ["행복한", "즐거운", "용감한", "똑똑한", "호기심많은", "신나는", "귀여운", "멋진", "열정적인", "지혜로운"]
+nouns = ["토끼", "강아지", "고양이", "다람쥐", "펭귄", "병아리", "호랑이", "사자", "쿼카", "돌고래", "부엉이"]
+
 if "my_random_name" not in st.session_state:
-    adjectives = ["행복한", "즐거운", "용감한", "똑똑한", "호기심많은", "신나는", "귀여운", "멋진", "열정적인", "지혜로운"]
-    nouns = ["토끼", "강아지", "고양이", "다람쥐", "펭귄", "병아리", "호랑이", "사자", "쿼카", "돌고래", "부엉이"]
     st.session_state["my_random_name"] = f"{random.choice(adjectives)} {random.choice(nouns)}"
 
 # --- 1. 서버 공유 메모리 ---
@@ -18,7 +20,7 @@ def get_shared_state():
         "records": [],
         "material_title": "1차시: 교육과정 재구성의 이해",
         "video_or_slide_url": "",
-        "prompt_template": "", # 프롬프트 저장용 변수 추가
+        "prompt_template": "", 
         "uploaded_file_bytes": None,
         "uploaded_file_name": None,
         "uploaded_file_type": None,
@@ -62,7 +64,7 @@ with st.sidebar:
         st.info("※ 구글 프레젠테이션 주소창의 링크를 그대로 넣으시면 자동 변환됩니다.")
         new_url = st.text_input("PPT 웹 게시 주소 또는 유튜브 링크", value=state["video_or_slide_url"])
         
-        # 프롬프트 입력칸 추가
+        # 프롬프트 입력칸
         new_prompt = st.text_area("복사용 프롬프트 (비워두면 화면에서 숨김)", value=state["prompt_template"], height=120)
         
         new_file = st.file_uploader("📎 공유할 파일 첨부 (선택)", type=None)
@@ -128,18 +130,15 @@ if state["winner"]:
 with st.container(border=True):
     st.markdown(f"### 📌 [진행 중인 강의] {state['material_title']}")
     
-    # 4-1. PPT 화면
     if state["video_or_slide_url"]:
         embed_link = get_embed_url(state["video_or_slide_url"])
         st.components.v1.iframe(embed_link, height=550, scrolling=True)
     
-    # 4-2. 복사용 프롬프트 (내용이 있을 때만 표시)
     if state["prompt_template"]:
         st.markdown("---")
         st.markdown("**📋 실습용 프롬프트 (우측 상단 복사 아이콘 클릭)**")
         st.code(state["prompt_template"], language="markdown")
         
-    # 4-3. 첨부 파일
     if state["uploaded_file_bytes"] is not None:
         st.markdown("---")
         st.download_button(
@@ -165,8 +164,8 @@ with st.form("feedback_form", clear_on_submit=True):
     st.subheader("✍️ 실시간 피드백 제출")
     c1, c2 = st.columns([1, 2])
     with c1:
-        # 자동으로 생성된 랜덤 닉네임을 기본값으로 부여 (원하면 수정 가능)
-        user_name = st.text_input("이름 (자동 랜덤 닉네임) 🏷️", value=st.session_state["my_random_name"])
+        # 참가자가 랜덤 닉네임을 지우고 자신의 실명을 기록할 수도 있습니다.
+        user_name = st.text_input("이름 (자동 닉네임 수정 가능) 🏷️", value=st.session_state["my_random_name"])
     with c2:
         selected_rating_label = st.select_slider(
             "오늘 수업 내용, 얼마나 이해하셨나요? 🌡️", 
@@ -186,12 +185,12 @@ with st.form("feedback_form", clear_on_submit=True):
         if user_name.strip() and user_feedback.strip():
             shared_records.append({
                 "제출시간": datetime.now().strftime("%H:%M:%S"),
-                "이름": user_name.strip(),
+                "이름": user_name.strip(), # 여기에 입력된 이름이 최종 기록됩니다.
                 "이해도": selected_rating_label.split(" ")[0], 
                 "점수": rating_options[selected_rating_label], 
                 "핵심 요약 및 Q&A": user_feedback.strip()
             })
-            # 제출 시마다 새로운 랜덤 닉네임으로 갱신해줌
+            # 제출 성공 시 다음 번을 위해 랜덤 닉네임을 새로 갱신합니다.
             st.session_state["my_random_name"] = f"{random.choice(adjectives)} {random.choice(nouns)}"
             st.toast("피드백이 성공적으로 전달되었습니다!", icon="💌")
             st.rerun()
