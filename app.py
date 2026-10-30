@@ -5,8 +5,7 @@ import random
 
 st.set_page_config(page_title="실시간 강의 대시보드", layout="wide")
 
-# --- 0. 참가자용 랜덤 닉네임 자동 생성 (오류 수정 부분) ---
-# 단어 목록을 if문 밖으로 꺼내서 제출 버튼을 눌러도 항상 기억하도록 수정했습니다.
+# --- 0. 참가자용 랜덤 닉네임 자동 생성 ---
 adjectives = ["행복한", "즐거운", "용감한", "똑똑한", "호기심많은", "신나는", "귀여운", "멋진", "열정적인", "지혜로운"]
 nouns = ["토끼", "강아지", "고양이", "다람쥐", "펭귄", "병아리", "호랑이", "사자", "쿼카", "돌고래", "부엉이"]
 
@@ -152,25 +151,25 @@ with st.container(border=True):
 st.divider()
 
 # --- 5. 참가자 실시간 피드백 입력 폼 ---
+# 이해도를 별점으로 변경하여 직관성 확보
 rating_options = {
-    "😭 너무 어려워요": 1,
-    "🤔 아리송해요": 2,
-    "🙂 보통이에요": 3,
-    "😊 이해했어요": 4,
-    "🤩 완벽히 이해했어요!": 5
+    "⭐ (어려워요)": 1,
+    "⭐⭐ (헷갈려요)": 2,
+    "⭐⭐⭐ (보통이에요)": 3,
+    "⭐⭐⭐⭐ (이해했어요)": 4,
+    "⭐⭐⭐⭐⭐ (완벽해요!)": 5
 }
 
 with st.form("feedback_form", clear_on_submit=True):
     st.subheader("✍️ 실시간 피드백 제출")
     c1, c2 = st.columns([1, 2])
     with c1:
-        # 참가자가 랜덤 닉네임을 지우고 자신의 실명을 기록할 수도 있습니다.
         user_name = st.text_input("이름 (자동 닉네임 수정 가능) 🏷️", value=st.session_state["my_random_name"])
     with c2:
         selected_rating_label = st.select_slider(
-            "오늘 수업 내용, 얼마나 이해하셨나요? 🌡️", 
+            "오늘 수업 내용, 얼마나 이해하셨나요? (별점)", 
             options=list(rating_options.keys()),
-            value="😊 이해했어요"
+            value="⭐⭐⭐⭐ (이해했어요)"
         )
         
     user_feedback = st.text_area(
@@ -183,14 +182,17 @@ with st.form("feedback_form", clear_on_submit=True):
     
     if submitted:
         if user_name.strip() and user_feedback.strip():
+            # 점수를 바탕으로 별 모양 문자열(예: ⭐⭐⭐)을 생성
+            score = rating_options[selected_rating_label]
+            star_string = "⭐" * score
+            
             shared_records.append({
                 "제출시간": datetime.now().strftime("%H:%M:%S"),
-                "이름": user_name.strip(), # 여기에 입력된 이름이 최종 기록됩니다.
-                "이해도": selected_rating_label.split(" ")[0], 
-                "점수": rating_options[selected_rating_label], 
+                "이름": user_name.strip(), 
+                "이해도": star_string, # 현황판에 별 개수로 직관적 표시
+                "점수": score, 
                 "핵심 요약 및 Q&A": user_feedback.strip()
             })
-            # 제출 성공 시 다음 번을 위해 랜덤 닉네임을 새로 갱신합니다.
             st.session_state["my_random_name"] = f"{random.choice(adjectives)} {random.choice(nouns)}"
             st.toast("피드백이 성공적으로 전달되었습니다!", icon="💌")
             st.rerun()
