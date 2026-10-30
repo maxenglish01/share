@@ -189,7 +189,7 @@ with st.form("feedback_form", clear_on_submit=True):
         selected_rating_label = st.select_slider(
             "오늘 수업 내용, 얼마나 이해하셨나요? (별점)", 
             options=list(rating_options.keys()),
-            value="⭐⭐⭐⭐ (이해했어요)"
+            value="⭐⭐⭐⭐⭐ (완벽해요!)"  # <--- 기본값을 5점으로 변경
         )
         
     user_feedback = st.text_area(
