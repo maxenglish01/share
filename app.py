@@ -52,71 +52,82 @@ def get_embed_url(url):
         
     return url
 
-# --- 2. 사이드바: 강사 전용 메뉴 ---
+# --- 2. 사이드바: 강사 전용 메뉴 (처음에 접힌 상태로 숨김) ---
 with st.sidebar:
-    st.header("🔒 강사 전용 메뉴")
-    admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: 1234")
-    
-    if admin_pw == "1234":
-        st.subheader("📝 강의 PPT 및 자료 설정")
-        new_title = st.text_input("강의 제목", value=state["material_title"])
-        st.info("※ 구글 프레젠테이션 주소창의 링크를 그대로 넣으시면 자동 변환됩니다.")
-        new_url = st.text_input("PPT 웹 게시 주소 또는 유튜브 링크", value=state["video_or_slide_url"])
+    # expander를 사용하여 기본적으로 접혀 있도록 (expanded=False) 설정합니다.
+    with st.expander("🔒 강사 전용 메뉴 (클릭하여 열기)", expanded=False):
+        admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: 1234")
         
-        # 프롬프트 입력칸
-        new_prompt = st.text_area("복사용 프롬프트 (비워두면 화면에서 숨김)", value=state["prompt_template"], height=120)
-        
-        new_file = st.file_uploader("📎 공유할 파일 첨부 (선택)", type=None)
-        
-        if st.button("🚀 참가자 화면에 즉시 반영", type="primary", use_container_width=True):
-            state["material_title"] = new_title
-            state["video_or_slide_url"] = new_url
-            state["prompt_template"] = new_prompt.strip()
-            if new_file is not None:
-                state["uploaded_file_bytes"] = new_file.getvalue()
-                state["uploaded_file_name"] = new_file.name
-                state["uploaded_file_type"] = new_file.type
-            st.success("참가자 화면에 반영되었습니다!")
-            st.rerun()
+        if admin_pw == "1234":
+            st.subheader("📝 강의 PPT 및 자료 설정")
+            new_title = st.text_input("강의 제목", value=state["material_title"])
+            st.info("※ 구글 프레젠테이션 주소창의 링크를 그대로 넣으시면 자동 변환됩니다.")
+            new_url = st.text_input("PPT 웹 게시 주소 또는 유튜브 링크", value=state["video_or_slide_url"])
+            
+            # 프롬프트 입력칸
+            new_prompt = st.text_area("복사용 프롬프트 (비워두면 화면에서 숨김)", value=state["prompt_template"], height=120)
+            
+            new_file = st.file_uploader("📎 공유할 파일 첨부 (새 파일)", type=None)
+            
+            if st.button("🚀 참가자 화면에 즉시 반영", type="primary", use_container_width=True):
+                state["material_title"] = new_title
+                state["video_or_slide_url"] = new_url
+                state["prompt_template"] = new_prompt.strip()
+                if new_file is not None:
+                    state["uploaded_file_bytes"] = new_file.getvalue()
+                    state["uploaded_file_name"] = new_file.name
+                    state["uploaded_file_type"] = new_file.type
+                st.success("참가자 화면에 반영되었습니다!")
+                st.rerun()
 
-        st.divider()
-        st.subheader("🎲 참가자 랜덤 뽑기")
-        if st.button("🎁 발표자 무작위 추첨", use_container_width=True):
+            # 파일 지우기 기능 추가
+            if state["uploaded_file_name"] is not None:
+                st.divider()
+                st.caption(f"📁 현재 첨부된 파일: **{state['uploaded_file_name']}**")
+                if st.button("🗑️ 현재 첨부 파일 지우기", use_container_width=True):
+                    state["uploaded_file_bytes"] = None
+                    state["uploaded_file_name"] = None
+                    state["uploaded_file_type"] = None
+                    st.rerun()
+
+            st.divider()
+            st.subheader("🎲 참가자 랜덤 뽑기")
+            if st.button("🎁 발표자 무작위 추첨", use_container_width=True):
+                if shared_records:
+                    names = list(set([r["이름"] for r in shared_records]))
+                    state["winner"] = random.choice(names)
+                    st.rerun()
+                else:
+                    st.warning("아직 제출한 참가자가 없습니다.")
+                    
+            if state["winner"]:
+                if st.button("당첨자 초기화", use_container_width=True):
+                    state["winner"] = None
+                    st.rerun()
+
+            st.divider()
+            st.subheader("📊 실시간 피드백 요약")
             if shared_records:
-                names = list(set([r["이름"] for r in shared_records]))
-                state["winner"] = random.choice(names)
-                st.rerun()
-            else:
-                st.warning("아직 제출한 참가자가 없습니다.")
+                df_export = pd.DataFrame(shared_records)
                 
-        if state["winner"]:
-            if st.button("당첨자 초기화", use_container_width=True):
-                state["winner"] = None
-                st.rerun()
+                avg_rating = df_export["점수"].astype(int).mean()
+                st.metric("전체 평균 이해도", f"{avg_rating:.1f} / 5.0 점")
+                
+                summary_text = "\n".join([f"[{r['이름']}] {r['핵심 요약 및 Q&A']}" for r in shared_records])
+                st.text_area("제출된 내용 한눈에 보기", value=summary_text, height=150)
 
-        st.divider()
-        st.subheader("📊 실시간 피드백 요약")
-        if shared_records:
-            df_export = pd.DataFrame(shared_records)
-            
-            avg_rating = df_export["점수"].astype(int).mean()
-            st.metric("전체 평균 이해도", f"{avg_rating:.1f} / 5.0 점")
-            
-            summary_text = "\n".join([f"[{r['이름']}] {r['핵심 요약 및 Q&A']}" for r in shared_records])
-            st.text_area("제출된 내용 한눈에 보기", value=summary_text, height=150)
-
-            csv_data = df_export.to_csv(index=False).encode("utf-8-sig")
-            st.download_button(
-                label="📥 전체 기록 CSV 다운로드",
-                data=csv_data,
-                file_name=f"강의피드백_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-            if st.button("🗑️ 전체 기록 초기화", use_container_width=True):
-                shared_records.clear()
-                state["winner"] = None
-                st.rerun()
+                csv_data = df_export.to_csv(index=False).encode("utf-8-sig")
+                st.download_button(
+                    label="📥 전체 기록 CSV 다운로드",
+                    data=csv_data,
+                    file_name=f"강의피드백_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+                if st.button("🗑️ 전체 기록 초기화", use_container_width=True):
+                    shared_records.clear()
+                    state["winner"] = None
+                    st.rerun()
 
 # --- 3. 메인 화면 타이틀 및 랜덤 뽑기 결과 ---
 st.title("🚀 실시간 강의 대시보드")
