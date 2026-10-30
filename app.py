@@ -5,6 +5,12 @@ import random
 
 st.set_page_config(page_title="실시간 강의 대시보드", layout="wide")
 
+# --- 0. 참가자용 랜덤 닉네임 자동 생성 ---
+if "my_random_name" not in st.session_state:
+    adjectives = ["행복한", "즐거운", "용감한", "똑똑한", "호기심많은", "신나는", "귀여운", "멋진", "열정적인", "지혜로운"]
+    nouns = ["토끼", "강아지", "고양이", "다람쥐", "펭귄", "병아리", "호랑이", "사자", "쿼카", "돌고래", "부엉이"]
+    st.session_state["my_random_name"] = f"{random.choice(adjectives)} {random.choice(nouns)}"
+
 # --- 1. 서버 공유 메모리 ---
 @st.cache_resource
 def get_shared_state():
@@ -12,31 +18,30 @@ def get_shared_state():
         "records": [],
         "material_title": "1차시: 교육과정 재구성의 이해",
         "video_or_slide_url": "",
+        "prompt_template": "", # 프롬프트 저장용 변수 추가
         "uploaded_file_bytes": None,
         "uploaded_file_name": None,
         "uploaded_file_type": None,
-        "winner": None  # 랜덤 당첨자 저장용 (모든 화면에 공유됨)
+        "winner": None  
     }
 
 state = get_shared_state()
 shared_records = state["records"]
 
-# 구글 슬라이드 주소 변환 함수 (오류 완벽 수정)
+# 구글 슬라이드 주소 변환 함수
 def get_embed_url(url):
     if not url: return ""
     url = url.strip()
     
-    # 구글 프레젠테이션 URL 처리
     if "docs.google.com/presentation" in url:
-        if "/pub" in url:  # 웹에 게시된 링크인 경우
+        if "/pub" in url:
             return url.replace("/pub", "/embed")
-        elif "/edit" in url:  # 일반 편집 링크인 경우 (정규식 대신 안전하게 자르기)
+        elif "/edit" in url: 
             return url.split("/edit")[0] + "/preview"
         elif "/preview" not in url and "/embed" not in url:
             return url.rstrip('/') + "/preview"
         return url
         
-    # 유튜브 URL 처리
     elif "youtube.com/watch?v=" in url:
         video_id = url.split("v=")[1].split("&")[0]
         return f"https://www.youtube.com/embed/{video_id}"
@@ -57,11 +62,15 @@ with st.sidebar:
         st.info("※ 구글 프레젠테이션 주소창의 링크를 그대로 넣으시면 자동 변환됩니다.")
         new_url = st.text_input("PPT 웹 게시 주소 또는 유튜브 링크", value=state["video_or_slide_url"])
         
+        # 프롬프트 입력칸 추가
+        new_prompt = st.text_area("복사용 프롬프트 (비워두면 화면에서 숨김)", value=state["prompt_template"], height=120)
+        
         new_file = st.file_uploader("📎 공유할 파일 첨부 (선택)", type=None)
         
         if st.button("🚀 참가자 화면에 즉시 반영", type="primary", use_container_width=True):
             state["material_title"] = new_title
             state["video_or_slide_url"] = new_url
+            state["prompt_template"] = new_prompt.strip()
             if new_file is not None:
                 state["uploaded_file_bytes"] = new_file.getvalue()
                 state["uploaded_file_name"] = new_file.name
@@ -89,15 +98,12 @@ with st.sidebar:
         if shared_records:
             df_export = pd.DataFrame(shared_records)
             
-            # 이해도 평균 계산
             avg_rating = df_export["점수"].astype(int).mean()
             st.metric("전체 평균 이해도", f"{avg_rating:.1f} / 5.0 점")
             
-            # 내용 요약 텍스트 박스
             summary_text = "\n".join([f"[{r['이름']}] {r['핵심 요약 및 Q&A']}" for r in shared_records])
             st.text_area("제출된 내용 한눈에 보기", value=summary_text, height=150)
 
-            # 다운로드 및 초기화
             csv_data = df_export.to_csv(index=False).encode("utf-8-sig")
             st.download_button(
                 label="📥 전체 기록 CSV 다운로드",
@@ -122,12 +128,20 @@ if state["winner"]:
 with st.container(border=True):
     st.markdown(f"### 📌 [진행 중인 강의] {state['material_title']}")
     
+    # 4-1. PPT 화면
     if state["video_or_slide_url"]:
         embed_link = get_embed_url(state["video_or_slide_url"])
         st.components.v1.iframe(embed_link, height=550, scrolling=True)
+    
+    # 4-2. 복사용 프롬프트 (내용이 있을 때만 표시)
+    if state["prompt_template"]:
+        st.markdown("---")
+        st.markdown("**📋 실습용 프롬프트 (우측 상단 복사 아이콘 클릭)**")
+        st.code(state["prompt_template"], language="markdown")
         
+    # 4-3. 첨부 파일
     if state["uploaded_file_bytes"] is not None:
-        st.divider()
+        st.markdown("---")
         st.download_button(
             label=f"📥 강의 보조 자료 다운로드 ({state['uploaded_file_name']})",
             data=state["uploaded_file_bytes"],
@@ -138,8 +152,7 @@ with st.container(border=True):
 
 st.divider()
 
-# --- 5. 참가자 실시간 피드백 입력 폼 (이해도 귀엽게 수정) ---
-# 이해도 옵션 딕셔너리
+# --- 5. 참가자 실시간 피드백 입력 폼 ---
 rating_options = {
     "😭 너무 어려워요": 1,
     "🤔 아리송해요": 2,
@@ -152,7 +165,8 @@ with st.form("feedback_form", clear_on_submit=True):
     st.subheader("✍️ 실시간 피드백 제출")
     c1, c2 = st.columns([1, 2])
     with c1:
-        user_name = st.text_input("이름 (또는 닉네임) 🏷️", placeholder="예: 홍길동")
+        # 자동으로 생성된 랜덤 닉네임을 기본값으로 부여 (원하면 수정 가능)
+        user_name = st.text_input("이름 (자동 랜덤 닉네임) 🏷️", value=st.session_state["my_random_name"])
     with c2:
         selected_rating_label = st.select_slider(
             "오늘 수업 내용, 얼마나 이해하셨나요? 🌡️", 
@@ -173,10 +187,12 @@ with st.form("feedback_form", clear_on_submit=True):
             shared_records.append({
                 "제출시간": datetime.now().strftime("%H:%M:%S"),
                 "이름": user_name.strip(),
-                "이해도": selected_rating_label.split(" ")[0], # 이모지만 추출해서 표시 (예: 🤩)
-                "점수": rating_options[selected_rating_label], # 숫자 점수 저장 (평균 계산용)
+                "이해도": selected_rating_label.split(" ")[0], 
+                "점수": rating_options[selected_rating_label], 
                 "핵심 요약 및 Q&A": user_feedback.strip()
             })
+            # 제출 시마다 새로운 랜덤 닉네임으로 갱신해줌
+            st.session_state["my_random_name"] = f"{random.choice(adjectives)} {random.choice(nouns)}"
             st.toast("피드백이 성공적으로 전달되었습니다!", icon="💌")
             st.rerun()
         else:
@@ -193,7 +209,6 @@ with col_refresh:
         st.rerun()
 
 if shared_records:
-    # 점수 컬럼은 숨기고, 이모지(이해도)만 보여주기 위해 DataFrame 조정
     df_display = pd.DataFrame(shared_records).iloc[::-1]
     df_display = df_display.drop(columns=["점수"])
     
