@@ -66,7 +66,7 @@ with st.sidebar:
     with st.expander("🔒 강사 전용 메뉴 (클릭하여 열기)", expanded=False):
         admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: 1234")
         
-        if admin_pw == "김태국":
+        if admin_pw == "rlaxornr":
             st.subheader("📝 강의 PPT 및 자료 설정")
             new_title = st.text_input("강의 제목", value=state["material_title"])
             st.info("※ 구글 프레젠테이션 주소창의 링크를 그대로 넣으시면 자동 변환됩니다.")
