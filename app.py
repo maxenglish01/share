@@ -3,7 +3,12 @@ import pandas as pd
 from datetime import datetime
 import random
 
-st.set_page_config(page_title="실시간 강의 대시보드", layout="wide")
+# --- 1. 초기 화면 사이드바 접힘(collapsed) 설정 ---
+st.set_page_config(
+    page_title="실시간 강의 대시보드", 
+    layout="wide",
+    initial_sidebar_state="collapsed" # 처음에 사이드바가 닫혀있도록 설정
+)
 
 # --- 0. 참가자용 랜덤 닉네임 자동 생성 ---
 adjectives = ["행복한", "즐거운", "용감한", "똑똑한", "호기심많은", "신나는", "귀여운", "멋진", "열정적인", "지혜로운"]
@@ -12,7 +17,11 @@ nouns = ["토끼", "강아지", "고양이", "다람쥐", "펭귄", "병아리",
 if "my_random_name" not in st.session_state:
     st.session_state["my_random_name"] = f"{random.choice(adjectives)} {random.choice(nouns)}"
 
-# --- 1. 서버 공유 메모리 ---
+# 파일 업로더 위젯 초기화용 키 생성 (삭제 시 캐시를 비우기 위함)
+if "uploader_key" not in st.session_state:
+    st.session_state["uploader_key"] = str(random.random())
+
+# --- 2. 서버 공유 메모리 ---
 @st.cache_resource
 def get_shared_state():
     return {
@@ -52,9 +61,8 @@ def get_embed_url(url):
         
     return url
 
-# --- 2. 사이드바: 강사 전용 메뉴 (처음에 접힌 상태로 숨김) ---
+# --- 3. 사이드바: 강사 전용 메뉴 ---
 with st.sidebar:
-    # expander를 사용하여 기본적으로 접혀 있도록 (expanded=False) 설정합니다.
     with st.expander("🔒 강사 전용 메뉴 (클릭하여 열기)", expanded=False):
         admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: 1234")
         
@@ -64,10 +72,10 @@ with st.sidebar:
             st.info("※ 구글 프레젠테이션 주소창의 링크를 그대로 넣으시면 자동 변환됩니다.")
             new_url = st.text_input("PPT 웹 게시 주소 또는 유튜브 링크", value=state["video_or_slide_url"])
             
-            # 프롬프트 입력칸
             new_prompt = st.text_area("복사용 프롬프트 (비워두면 화면에서 숨김)", value=state["prompt_template"], height=120)
             
-            new_file = st.file_uploader("📎 공유할 파일 첨부 (새 파일)", type=None)
+            # 파일 업로더에 session_state 키 부여
+            new_file = st.file_uploader("📎 공유할 파일 첨부", type=None, key=st.session_state["uploader_key"])
             
             if st.button("🚀 참가자 화면에 즉시 반영", type="primary", use_container_width=True):
                 state["material_title"] = new_title
@@ -80,14 +88,16 @@ with st.sidebar:
                 st.success("참가자 화면에 반영되었습니다!")
                 st.rerun()
 
-            # 파일 지우기 기능 추가
+            # --- 첨부파일 완전 삭제 기능 구현 ---
             if state["uploaded_file_name"] is not None:
                 st.divider()
-                st.caption(f"📁 현재 첨부된 파일: **{state['uploaded_file_name']}**")
+                st.caption(f"📁 현재 참가자에게 공유 중인 파일: **{state['uploaded_file_name']}**")
                 if st.button("🗑️ 현재 첨부 파일 지우기", use_container_width=True):
                     state["uploaded_file_bytes"] = None
                     state["uploaded_file_name"] = None
                     state["uploaded_file_type"] = None
+                    # 핵심: 파일 업로더의 key값을 랜덤으로 바꿔 기존 파일 캐시를 날림
+                    st.session_state["uploader_key"] = str(random.random()) 
                     st.rerun()
 
             st.divider()
@@ -129,14 +139,14 @@ with st.sidebar:
                     state["winner"] = None
                     st.rerun()
 
-# --- 3. 메인 화면 타이틀 및 랜덤 뽑기 결과 ---
+# --- 4. 메인 화면 타이틀 및 랜덤 뽑기 결과 ---
 st.title("🚀 실시간 강의 대시보드")
 
 if state["winner"]:
     st.success(f"🎉 **축하합니다! 오늘의 발표자(이벤트 당첨자)는 [{state['winner']}] 님입니다!** 🎉")
     st.balloons()
 
-# --- 4. 강사 제공 자료(PPT) 카드 ---
+# --- 5. 강사 제공 자료(PPT) 카드 ---
 with st.container(border=True):
     st.markdown(f"### 📌 [진행 중인 강의] {state['material_title']}")
     
@@ -161,8 +171,7 @@ with st.container(border=True):
 
 st.divider()
 
-# --- 5. 참가자 실시간 피드백 입력 폼 ---
-# 이해도를 별점으로 변경하여 직관성 확보
+# --- 6. 참가자 실시간 피드백 입력 폼 ---
 rating_options = {
     "⭐ (어려워요)": 1,
     "⭐⭐ (헷갈려요)": 2,
@@ -193,14 +202,13 @@ with st.form("feedback_form", clear_on_submit=True):
     
     if submitted:
         if user_name.strip() and user_feedback.strip():
-            # 점수를 바탕으로 별 모양 문자열(예: ⭐⭐⭐)을 생성
             score = rating_options[selected_rating_label]
             star_string = "⭐" * score
             
             shared_records.append({
                 "제출시간": datetime.now().strftime("%H:%M:%S"),
                 "이름": user_name.strip(), 
-                "이해도": star_string, # 현황판에 별 개수로 직관적 표시
+                "이해도": star_string,
                 "점수": score, 
                 "핵심 요약 및 Q&A": user_feedback.strip()
             })
@@ -212,7 +220,7 @@ with st.form("feedback_form", clear_on_submit=True):
 
 st.divider()
 
-# --- 6. 실시간 피드백 공유 현황판 ---
+# --- 7. 실시간 피드백 공유 현황판 ---
 col_title, col_refresh = st.columns([4, 1])
 with col_title:
     st.subheader(f"💬 전체 참가자 현황 ({len(shared_records)}건)")
