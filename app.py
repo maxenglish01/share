@@ -203,4 +203,50 @@ with st.form("feedback_form", clear_on_submit=True):
         )
         
     user_feedback = st.text_area(
-        "수업의 핵심 요약이나 궁금한 질문(Q&A)을 자유롭게 남
+        "수업의 핵심 요약이나 궁금한 질문(Q&A)을 자유롭게 남겨주세요. 💬", 
+        height=100,
+        placeholder="질문이 있거나 요약할 내용을 이곳에 작성해 주세요..."
+    )
+    
+    submitted = st.form_submit_button("✅ 피드백 날리기", use_container_width=True)
+    
+    if submitted:
+        if user_name.strip() and user_feedback.strip():
+            score = rating_options[selected_rating_label]
+            star_string = "⭐" * score
+            
+            shared_records.append({
+                "제출시간": datetime.now().strftime("%H:%M:%S"),
+                "이름": user_name.strip(), 
+                "이해도": star_string,
+                "점수": score, 
+                "핵심 요약 및 Q&A": user_feedback.strip()
+            })
+            st.session_state["my_random_name"] = f"{random.choice(adjectives)} {random.choice(nouns)}"
+            st.toast("피드백이 성공적으로 전달되었습니다!", icon="💌")
+            st.rerun()
+        else:
+            st.warning("이름과 내용을 모두 입력해 주세요.")
+
+st.divider()
+
+# --- 7. 실시간 피드백 공유 현황판 (3초마다 자동 갱신되는 프래그먼트) ---
+@st.fragment(run_every=3)
+def render_live_board():
+    col_title, col_refresh = st.columns([4, 1])
+    with col_title:
+        st.subheader(f"💬 전체 참가자 현황 ({len(shared_records)}건)")
+    with col_refresh:
+        # 참가자도 강제 동기화가 필요한 경우 누를 수 있는 버튼
+        if st.button("🔄 즉시 동기화", use_container_width=True):
+            st.rerun()
+
+    if shared_records:
+        df_display = pd.DataFrame(shared_records).iloc[::-1]
+        df_display = df_display.drop(columns=["점수"])
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+    else:
+        st.info("아직 제출된 피드백이 없습니다. 첫 번째 피드백의 주인공이 되어주세요!")
+
+# 현황판 프래그먼트 실행
+render_live_board()
