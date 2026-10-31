@@ -10,7 +10,8 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 데이터프레임(피드백 현황판) 우측 상단에 생기는 스트림릿 기본 툴바(다운로드 버튼) 숨김 CSS
+# 데이터프레임(피드백 현황판) 우측 상단 툴바(다운로드 버튼 등) 숨김 CSS
+# 참가자가 메인 화면에서 다른 사람들의 제출 기록을 임의로 다운로드하지 못하게 완벽히 차단합니다.
 st.markdown(
     """
     <style>
@@ -72,8 +73,7 @@ def get_embed_url(url):
 # --- 3. 사이드바: 강사 전용 메뉴 ---
 with st.sidebar:
     with st.expander("🔒 강사 전용 메뉴 (클릭하여 열기)", expanded=False):
-        # [수정] 세션 상태 유지를 위해 key="admin_pw" 추가
-        admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: 1234", key="admin_pw")
+        admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: rlaxornr", key="admin_pw")
         
         if admin_pw == "rlaxornr":
             st.subheader("📝 강의 PPT 및 자료 설정")
@@ -122,8 +122,9 @@ with st.sidebar:
                     st.session_state["last_winner"] = None
                     st.rerun()
 
+            # ----- (핵심) 강사만 접근할 수 있는 참가자 '제출 자료' 다운로드 구역 -----
             st.divider()
-            st.subheader("📊 실시간 피드백 요약")
+            st.subheader("📊 제출된 피드백 자료 관리")
             if shared_records:
                 df_export = pd.DataFrame(shared_records)
                 avg_rating = df_export["점수"].astype(int).mean()
@@ -134,11 +135,12 @@ with st.sidebar:
 
                 csv_data = df_export.to_csv(index=False).encode("utf-8-sig")
                 st.download_button(
-                    label="📥 전체 기록 CSV 다운로드",
+                    label="📥 제출된 전체 피드백 다운로드 (CSV)",
                     data=csv_data,
                     file_name=f"강의피드백_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
-                    use_container_width=True
+                    use_container_width=True,
+                    type="primary"
                 )
                 if st.button("🗑️ 전체 기록 초기화", use_container_width=True):
                     shared_records.clear()
@@ -155,7 +157,6 @@ def render_live_materials():
     # 당첨자 발표
     if state["winner"]:
         st.success(f"🎉 **축하합니다! 오늘의 발표자(이벤트 당첨자)는 [{state['winner']}] 님입니다!** 🎉")
-        # 풍선 애니메이션이 3초마다 계속 터지는 것을 방지 (최초 1회만 재생)
         if st.session_state["last_winner"] != state["winner"]:
             st.balloons()
             st.session_state["last_winner"] = state["winner"]
@@ -180,23 +181,22 @@ def render_live_materials():
                 with img_col2:
                     st.image(state["uploaded_file_bytes"], use_container_width=True, caption=state['uploaded_file_name'])
             
-            # [수정] 다운로드 버튼은 강사(비밀번호를 입력한 세션)에게만 보이도록 차단
-            if st.session_state.get("admin_pw") == "rlaxornr":
-                st.download_button(
-                    label=f"📥 강의 보조 자료 다운로드 ({state['uploaded_file_name']})",
-                    data=state["uploaded_file_bytes"],
-                    file_name=state["uploaded_file_name"],
-                    mime=state["uploaded_file_type"] or "application/octet-stream",
-                    type="primary",
-                    use_container_width=True
-                )
+            # 강의 보조 자료(첨부파일)는 참가자에게 배포하는 것이 목적이므로 모두가 다운로드할 수 있도록 원복했습니다.
+            st.download_button(
+                label=f"📥 강의 보조 자료 다운로드 ({state['uploaded_file_name']})",
+                data=state["uploaded_file_bytes"],
+                file_name=state["uploaded_file_name"],
+                mime=state["uploaded_file_type"] or "application/octet-stream",
+                type="primary",
+                use_container_width=True
+            )
 
 # 프래그먼트 실행
 render_live_materials()
 
 st.divider()
 
-# --- 6. 참가자 실시간 피드백 입력 폼 (이 부분은 입력 중 끊기지 않게 프래그먼트에서 제외) ---
+# --- 6. 참가자 실시간 피드백 입력 폼 ---
 rating_options = {
     "⭐ (어려워요)": 1,
     "⭐⭐ (헷갈려요)": 2,
@@ -245,21 +245,20 @@ with st.form("feedback_form", clear_on_submit=True):
 
 st.divider()
 
-# --- 7. 실시간 피드백 공유 현황판 (3초마다 자동 갱신되는 프래그먼트) ---
+# --- 7. 실시간 피드백 공유 현황판 ---
 @st.fragment(run_every=3)
 def render_live_board():
     col_title, col_refresh = st.columns([4, 1])
     with col_title:
         st.subheader(f"💬 전체 참가자 현황 ({len(shared_records)}건)")
     with col_refresh:
-        # 참가자도 강제 동기화가 필요한 경우 누를 수 있는 버튼
         if st.button("🔄 즉시 동기화", use_container_width=True):
             st.rerun()
 
     if shared_records:
         df_display = pd.DataFrame(shared_records).iloc[::-1]
         df_display = df_display.drop(columns=["점수"])
-        # 데이터프레임을 그려주되 CSS로 다운로드 기능은 숨김 처리됨
+        # CSS를 통해 데이터프레임 툴바(다운로드 기능)가 가려져서 출력됩니다.
         st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
         st.info("아직 제출된 피드백이 없습니다. 첫 번째 피드백의 주인공이 되어주세요!")
