@@ -152,7 +152,7 @@ with st.sidebar:
 st.title("🚀 실시간 강의 대시보드")
 
 # --- 5. 당첨자 발표 및 강사 제공 자료 카드 (3초마다 자동 갱신되는 프래그먼트) ---
-@st.fragment(run_every=3)
+@st.fragment(run_every=4)
 def render_live_materials():
     # 당첨자 발표
     if state["winner"]:
@@ -259,7 +259,7 @@ def render_live_board():
         df_display = pd.DataFrame(shared_records).iloc[::-1]
         df_display = df_display.drop(columns=["점수"])
         # CSS를 통해 데이터프레임 툴바(다운로드 기능)가 가려져서 출력됩니다.
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
+        st.dataframe(df_display.head(20), use_container_width=True, hide_index=True)
     else:
         st.info("아직 제출된 피드백이 없습니다. 첫 번째 피드백의 주인공이 되어주세요!")
 
