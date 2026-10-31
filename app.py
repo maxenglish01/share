@@ -3,11 +3,23 @@ import pandas as pd
 from datetime import datetime
 import random
 
-# --- 1. 초기 화면 사이드바 접힘(collapsed) 설정 ---
+# --- 1. 초기 화면 사이드바 접힘(collapsed) 및 CSS 설정 ---
 st.set_page_config(
     page_title="실시간 강의 대시보드", 
     layout="wide",
     initial_sidebar_state="collapsed"
+)
+
+# 데이터프레임(피드백 현황판) 우측 상단에 생기는 스트림릿 기본 툴바(다운로드 버튼) 숨김 CSS
+st.markdown(
+    """
+    <style>
+    div[data-testid="stElementContainer"]:has([data-testid="stDataFrame"]) [data-testid="stElementToolbar"] {
+        display: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
 # --- 0. 참가자용 랜덤 닉네임 자동 생성 ---
@@ -60,7 +72,8 @@ def get_embed_url(url):
 # --- 3. 사이드바: 강사 전용 메뉴 ---
 with st.sidebar:
     with st.expander("🔒 강사 전용 메뉴 (클릭하여 열기)", expanded=False):
-        admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: 1234")
+        # [수정] 세션 상태 유지를 위해 key="admin_pw" 추가
+        admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: 1234", key="admin_pw")
         
         if admin_pw == "rlaxornr":
             st.subheader("📝 강의 PPT 및 자료 설정")
@@ -166,15 +179,17 @@ def render_live_materials():
                 img_col1, img_col2, img_col3 = st.columns([1, 2, 1])
                 with img_col2:
                     st.image(state["uploaded_file_bytes"], use_container_width=True, caption=state['uploaded_file_name'])
-                
-            st.download_button(
-                label=f"📥 강의 보조 자료 다운로드 ({state['uploaded_file_name']})",
-                data=state["uploaded_file_bytes"],
-                file_name=state["uploaded_file_name"],
-                mime=state["uploaded_file_type"] or "application/octet-stream",
-                type="primary",
-                use_container_width=True
-            )
+            
+            # [수정] 다운로드 버튼은 강사(비밀번호를 입력한 세션)에게만 보이도록 차단
+            if st.session_state.get("admin_pw") == "rlaxornr":
+                st.download_button(
+                    label=f"📥 강의 보조 자료 다운로드 ({state['uploaded_file_name']})",
+                    data=state["uploaded_file_bytes"],
+                    file_name=state["uploaded_file_name"],
+                    mime=state["uploaded_file_type"] or "application/octet-stream",
+                    type="primary",
+                    use_container_width=True
+                )
 
 # 프래그먼트 실행
 render_live_materials()
@@ -244,6 +259,7 @@ def render_live_board():
     if shared_records:
         df_display = pd.DataFrame(shared_records).iloc[::-1]
         df_display = df_display.drop(columns=["점수"])
+        # 데이터프레임을 그려주되 CSS로 다운로드 기능은 숨김 처리됨
         st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
         st.info("아직 제출된 피드백이 없습니다. 첫 번째 피드백의 주인공이 되어주세요!")
