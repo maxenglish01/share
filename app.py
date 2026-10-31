@@ -73,7 +73,7 @@ def get_embed_url(url):
 # --- 3. 사이드바: 강사 전용 메뉴 ---
 with st.sidebar:
     with st.expander("🔒 강사 전용 메뉴 (클릭하여 열기)", expanded=False):
-        admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: rlaxornr", key="admin_pw")
+        admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: 1234", key="admin_pw")
         
         if admin_pw == "rlaxornr":
             st.subheader("📝 강의 PPT 및 자료 설정")
