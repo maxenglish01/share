@@ -151,8 +151,8 @@ with st.sidebar:
 # --- 4. 메인 화면 타이틀 ---
 st.title("🚀 실시간 강의 대시보드")
 
-# --- 5. 당첨자 발표 및 강사 제공 자료 카드 (3초마다 자동 갱신되는 프래그먼트) ---
-@st.fragment(run_every=4)
+# --- 5. 당첨자 발표 및 강사 제공 자료 카드 (3.5초마다 자동 갱신되는 프래그먼트) ---
+@st.fragment(run_every=3.5)
 def render_live_materials():
     # 당첨자 발표
     if state["winner"]:
