@@ -62,7 +62,7 @@ with st.sidebar:
     with st.expander("🔒 강사 전용 메뉴 (클릭하여 열기)", expanded=False):
         admin_pw = st.text_input("강사 비밀번호", type="password", placeholder="기본값: 1234")
         
-        if admin_pw == "1234":
+        if admin_pw == "rlaxornr":
             st.subheader("📝 강의 PPT 및 자료 설정")
             new_title = st.text_input("강의 제목", value=state["material_title"])
             st.info("※ 구글 프레젠테이션 주소창의 링크를 그대로 넣으시면 자동 변환됩니다.")
@@ -157,7 +157,7 @@ def render_live_materials():
         
         if state["prompt_template"]:
             st.markdown("---")
-            st.markdown("**📋 실습용 프롬프트 (우측 상단 복사 아이콘 클릭)**")
+            st.markdown("**📋 실습용 자료 (우측 상단 복사 아이콘 클릭)**")
             st.code(state["prompt_template"], language="markdown")
             
         if state["uploaded_file_bytes"] is not None:
